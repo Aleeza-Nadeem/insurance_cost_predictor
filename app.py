@@ -1,7 +1,11 @@
+import os
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# Locate current directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 st.set_page_config(
     page_title="Medical Insurance Cost Predictor", page_icon="🏥"
@@ -10,10 +14,10 @@ st.set_page_config(
 
 @st.cache_resource
 def load_artifacts():
-  svr = joblib.load('svr_model.pkl')
-  scaler_X = joblib.load('scaler_X.pkl')
-  scaler_y = joblib.load('scaler_y.pkl')
-  columns = joblib.load('model_columns.pkl')
+  svr = joblib.load(os.path.join(BASE_DIR, 'svr_model.pkl'))
+  scaler_X = joblib.load(os.path.join(BASE_DIR, 'scaler_X.pkl'))
+  scaler_y = joblib.load(os.path.join(BASE_DIR, 'scaler_y.pkl'))
+  columns = joblib.load(os.path.join(BASE_DIR, 'model_columns.pkl'))
   return svr, scaler_X, scaler_y, columns
 
 
@@ -35,18 +39,28 @@ with col2:
   )
 
 if st.button("Predict Insurance Cost", type="primary"):
-  input_df = pd.DataFrame(0, index=[0], columns=model_columns)
-  input_df.loc[0, 'age'] = age
-  input_df.loc[0, 'bmi'] = bmi
-  input_df.loc[0, 'children'] = children
+  # Create input dictionary initialized with floats
+  input_data = {col: 0.0 for col in model_columns}
 
-  if 'sex_male' in model_columns and sex == 'male':
-    input_df.loc[0, 'sex_male'] = 1
-  if 'smoker_yes' in model_columns and smoker == 'yes':
-    input_df.loc[0, 'smoker_yes'] = 1
-  if f'region_{region}' in model_columns:
-    input_df.loc[0, f'region_{region}'] = 1
+  # Assign user values safely
+  if 'age' in input_data:
+    input_data['age'] = float(age)
+  if 'bmi' in input_data:
+    input_data['bmi'] = float(bmi)
+  if 'children' in input_data:
+    input_data['children'] = float(children)
 
+  if 'sex_male' in input_data and sex == 'male':
+    input_data['sex_male'] = 1.0
+  if 'smoker_yes' in input_data and smoker == 'yes':
+    input_data['smoker_yes'] = 1.0
+  if f'region_{region}' in input_data:
+    input_data[f'region_{region}'] = 1.0
+
+  # Convert dictionary to DataFrame with exact column ordering
+  input_df = pd.DataFrame([input_data])[model_columns]
+
+  # Scale inputs and predict
   input_scaled = scaler_X.transform(input_df)
   pred_scaled = svr.predict(input_scaled)
   pred_log = scaler_y.inverse_transform(pred_scaled.reshape(-1, 1)).ravel()
